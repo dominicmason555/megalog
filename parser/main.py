@@ -1,26 +1,24 @@
-from typing import Optional, Callable
-from datetime import datetime
-import enum
+#!/usr/bin/env python3
+
+import csv
 import dataclasses
+import enum
 import json
+import sys
+import tomllib
+from datetime import datetime
+from pathlib import Path
+from typing import Callable, Optional
+
+CONF_FILE = "config.toml"
 
 
 @dataclasses.dataclass
 class Fact:
+    subject_type: str
     subject: str
-    verb: str
+    object_type: str
     object: str
-
-
-class FactHandlerJson:
-    def __init__(self) -> None:
-        self.facts: list[tuple[str, str, str]] = []
-
-    def add_fact(self, fact: Fact) -> None:
-        self.facts.append((fact.subject, fact.verb, fact.object))
-
-    def serialise(self) -> str:
-        return json.dumps(self.facts)
 
 
 def match_date(text: str) -> Optional[str]:
@@ -162,8 +160,105 @@ def parse_line(line: str) -> Optional[Line]:
         return normal
 
 
+def parse_file(facts: list[Fact], filename: str, contents: str) -> list[Fact]:
+    def process_header(
+        headers: list[HeaderLine], header: HeaderLine
+    ) -> list[HeaderLine]:
+        while len(headers):
+            if header.level > headers[-1].level:
+                break
+            else:
+                headers.pop()
+        headers.append(header)
+        return headers
+
+    def get_day(headers: list[HeaderLine]) -> Optional[str]:
+        for header in reversed(headers):
+            if header.start_date:
+                return header.start_date
+
+    headers: list[HeaderLine] = []
+    for line_num, raw_line in enumerate(contents.splitlines()):
+        loc = f"{filename}:{line_num + 1}"
+        if line := parse_line(raw_line):
+            match line:
+                case HeaderLine() as header:
+                    headers = process_header(headers, header)
+                    if header.start_date:
+                        facts.append(Fact("line", loc, "day", header.start_date))
+
+                case TaskLine(t_type, attrs):
+                    if attrs:
+                        name = attrs[0][1]
+                        facts.append(Fact("line", loc, f"{t_type.value}created", name))
+                        if day := get_day(headers):
+                            facts.append(
+                                Fact("day", day, f"{t_type.value}created", name)
+                            )
+                        for attr in attrs[1:]:
+                            facts.append(Fact(t_type.value, name, attr[0], attr[1]))
+
+                case NormalLine(attrs):
+                    for attr in attrs:
+                        facts.append(Fact("line", loc, attr[0], attr[1]))
+                        if day := get_day(headers):
+                            facts.append(Fact("day", day, attr[0], attr[1]))
+
+    return facts
+
+
+def write_csv(filepath: str, facts: list[Fact]) -> None:
+    print(f"Writing {len(facts)} facts as CSV")
+    with open(filepath, "w") as file:
+        writer = csv.writer(file, csv.unix_dialect)
+        writer.writerow(("subject_type", "subject", "object_type", "object"))
+        writer.writerows(
+            (f.subject_type, f.subject, f.object_type, f.object) for f in facts
+        )
+
+
+def write_prolog(filepath: str, facts: list[Fact]) -> None:
+    print(f"Writing {len(facts)} facts as Prolog")
+    contents = (
+        f'fact("{f.subject_type}", "{f.subject}", "{f.object_type}", "{f.object}").'
+        for f in facts
+    )
+    Path(filepath).write_text("\n".join(contents))
+
+
+def write_json(filepath: str, facts: list[Fact]) -> None:
+    print(f"Writing {len(facts)} facts as JSON")
+    with open(filepath, "w") as file:
+        json.dump(facts, file, default=dataclasses.asdict)
+
+
 def main():
-    print("Hello from megalog!")
+    with open(CONF_FILE, "rb") as tomlfile:
+        config = tomllib.load(tomlfile)
+
+    paths: dict[str, str] = config["paths"]
+    facts: list[Fact] = []
+
+    for filename, filepath in paths.items():
+        contents = Path(filepath).expanduser().read_text()
+        facts = parse_file(facts, filename, contents)
+
+    if len(sys.argv) > 1:
+        if sys.argv[1].endswith(".csv"):
+            write_csv(sys.argv[1], facts)
+
+        elif sys.argv[1].endswith(".pl"):
+            write_prolog(sys.argv[1], facts)
+
+        elif sys.argv[1].endswith(".json"):
+            write_json(sys.argv[1], facts)
+
+    else:
+        for fact in facts:
+            if fact.subject_type != "line":
+                print(
+                    f"{fact.subject_type:20}{fact.subject:20}{fact.object_type:20}{fact.object:20}"
+                )
 
 
 if __name__ == "__main__":
