@@ -10,3 +10,7 @@ wheels/
 .venv
 
 config.toml
+out.csv
+out.json
+out.pl
+out.db
