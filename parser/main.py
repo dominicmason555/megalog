@@ -272,11 +272,13 @@ def main():
             write_sqlite(sys.argv[1], facts)
 
     else:
+        print(f"Mega Log: {len(facts)} facts\n")
         for fact in facts:
-            if fact.subject_type != "line":
+            if fact.subject_type == "day":
                 print(
-                    f"{fact.subject_type:20}{fact.subject:20}{fact.object_type:20}{fact.object:20}"
+                    f"{fact.subject:15}{fact.object_type:19}{fact.object:19}"
                 )
+        print()
 
 
 if __name__ == "__main__":
