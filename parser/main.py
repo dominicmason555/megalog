@@ -4,6 +4,7 @@ import csv
 import dataclasses
 import enum
 import json
+import sqlite3
 import sys
 import tomllib
 from datetime import datetime
@@ -181,6 +182,7 @@ def parse_file(facts: list[Fact], filename: str, contents: str) -> list[Fact]:
     for line_num, raw_line in enumerate(contents.splitlines()):
         loc = f"{filename}:{line_num + 1}"
         if line := parse_line(raw_line):
+            facts.append(Fact("line", loc, "raw_line", raw_line))
             match line:
                 case HeaderLine() as header:
                     headers = process_header(headers, header)
@@ -232,6 +234,19 @@ def write_json(filepath: str, facts: list[Fact]) -> None:
         json.dump(facts, file, default=dataclasses.asdict)
 
 
+def write_sqlite(filepath: str, facts: list[Fact]) -> None:
+    print(f"Writing {len(facts)} facts as SQLite")
+    with sqlite3.connect(filepath) as conn:
+        conn.execute("DROP TABLE IF EXISTS facts")
+        conn.execute(
+            "CREATE TABLE facts (subject_Type VARCHAR, subject VARCHAR, object_Type VARCAR, object VARCHAR)"
+        )
+        conn.executemany(
+            "INSERT INTO facts VALUES (:subject_type, :subject, :object_type, :object)",
+            map(dataclasses.asdict, facts),
+        )
+
+
 def main():
     with open(CONF_FILE, "rb") as tomlfile:
         config = tomllib.load(tomlfile)
@@ -252,6 +267,9 @@ def main():
 
         elif sys.argv[1].endswith(".json"):
             write_json(sys.argv[1], facts)
+
+        elif sys.argv[1].endswith(".db"):
+            write_sqlite(sys.argv[1], facts)
 
     else:
         for fact in facts:
