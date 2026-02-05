@@ -233,6 +233,15 @@ def write_prolog(filepath: str, facts: list[Fact]) -> None:
     Path(filepath).write_text("\n".join(contents))
 
 
+def write_ntriples(filepath: str, facts: list[Fact]) -> None:
+    print(f"Writing {len(facts)} facts as N-Triples")
+    contents = (
+        f"<{f.source}/{f.id.replace(':', '/')}> <{f.rel}> <{f.value_type}/{f.value}> ."
+        for f in facts
+    )
+    Path(filepath).write_text("\n".join(contents))
+
+
 def write_json(filepath: str, facts: list[Fact]) -> None:
     print(f"Writing {len(facts)} facts as JSON")
     with open(filepath, "w") as file:
@@ -276,6 +285,9 @@ def main():
 
         elif sys.argv[1].endswith(".pl"):
             write_prolog(sys.argv[1], facts)
+
+        elif sys.argv[1].endswith(".nt"):
+            write_ntriples(sys.argv[1], facts)
 
         elif sys.argv[1].endswith(".json"):
             write_json(sys.argv[1], facts)
