@@ -99,6 +99,7 @@ NormalParserFun = Callable[[NormalParserState], NormalParserReturn]
 def parse_key_val(line: str) -> list[ParsedAttr]:
     # TODO: Multiple values separated by space
     # TODO Split object type and object on the . character
+    # TODO Parse $Key as key for generating ID
     def parse_value(state: NormalParserState) -> NormalParserReturn:
         pos_change, value = get_to_char(line[state.pos :], "]", "[:")
         state.pos += pos_change
@@ -173,7 +174,7 @@ def parse_file(facts: list[Fact], filename: str, contents: str) -> list[Fact]:
                 return header.start_date
 
     def record_normal(
-        facts: list[Fact], day: Optional[str], attrs: list[ParsedAttr]
+        facts: list[Fact], day: Optional[str], attrs: list[ParsedAttr], loc: str
     ) -> list[Fact]:
         subject: Optional[ParsedAttr] = None
         for attr in attrs:
@@ -226,7 +227,7 @@ def parse_file(facts: list[Fact], filename: str, contents: str) -> list[Fact]:
                         )
 
                 case NormalLine(attrs):
-                    facts = record_normal(facts, get_day(headers), attrs)
+                    facts = record_normal(facts, get_day(headers), attrs, loc)
 
     return facts
 
