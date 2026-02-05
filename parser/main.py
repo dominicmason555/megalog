@@ -15,11 +15,11 @@ CONF_FILE = "config.toml"
 
 @dataclass
 class Fact:
-    subject_t: str
-    subject: str
-    verb: str
-    object_t: str
-    object: str
+    source: str
+    id: str
+    rel: str
+    value_type: str
+    value: str
 
 
 def match_date(text: str) -> Optional[str]:
@@ -57,29 +57,32 @@ class HeaderLine:
                 return cls(level, None, None)
 
 
-def get_to_char(line: str, end: str, banned: str) -> tuple[int, Optional[str]]:
+def get_to_char(
+    line: str, end: str, banned: str
+) -> tuple[int, Optional[str], Optional[str]]:
     pos = 0
     value = ""
     while pos < len(line):
         if line[pos] in banned:
             pos += 1
-            return pos, None
-        elif line[pos] == end:
+            return pos, None, None
+        elif line[pos] in end:
             pos += 1
             if value != "":
-                return pos, value
-            return pos, None
+                return pos, value, line[pos - 1]
+            return pos, None, None
         else:
-            if not line[pos].isspace():
+            if (value != "") or (not line[pos].isspace()):
                 value += line[pos]
             pos += 1
-    return pos, None
+    return pos, None, None
 
 
 @dataclass
 class ParsedAttr:
-    key: str
-    value: str
+    rel: str
+    obj_t: str
+    obj: str
     subject_found: bool
 
 
@@ -97,20 +100,22 @@ NormalParserFun = Callable[[NormalParserState], NormalParserReturn]
 
 # Datemachine
 def parse_key_val(line: str) -> list[ParsedAttr]:
-    # TODO: Multiple values separated by space
-    # TODO Split object type and object on the . character
-    # TODO Parse $Key as key for generating ID
     def parse_value(state: NormalParserState) -> NormalParserReturn:
-        pos_change, value = get_to_char(line[state.pos :], "]", "[:")
+        pos_change, value, ender = get_to_char(line[state.pos :], ",]", "[")
         state.pos += pos_change
         if value is not None:
+            split = value.split(".")
+            obj_t = split[0].lower()
+            obj = split[1].lower() if len(split) > 1 else obj_t
             state.attrs.append(
-                ParsedAttr(state.key.lower(), value.lower(), state.subject_found)
+                ParsedAttr(state.key.lower(), obj_t, obj, state.subject_found)
             )
+        if ender == ",":
+            return parse_value, state
         return parse_outside, state
 
     def parse_key(state: NormalParserState) -> NormalParserReturn:
-        pos_change, key = get_to_char(line[state.pos :], ":", "[]")
+        pos_change, key, _ = get_to_char(line[state.pos :], ":", "[]")
         state.pos += pos_change
         if key is not None:
             if len(line) >= state.pos and line[state.pos] == ":":
@@ -174,60 +179,39 @@ def parse_file(facts: list[Fact], filename: str, contents: str) -> list[Fact]:
                 return header.start_date
 
     def record_normal(
-        facts: list[Fact], day: Optional[str], attrs: list[ParsedAttr], loc: str
+        facts: list[Fact],
+        day: Optional[str],
+        attrs: list[ParsedAttr],
+        file_name: str,
+        line_num: int,
     ) -> list[Fact]:
-        subject: Optional[ParsedAttr] = None
+        subject_counter = 0
         for attr in attrs:
-            if not attr.subject_found:
-                subject = attr
-                facts.append(
-                    Fact(
-                        "line",
-                        loc,
-                        attr.key,
-                        attr.value.split(".")[0],
-                        attr.value.split(".")[1],
-                    )
-                )
-            if attr.subject_found and subject:
-                # TODO: No split
-                facts.append(
-                    Fact(
-                        subject.value.split(".")[0],
-                        subject.value.split(".")[1],
-                        attr.key,
-                        attr.value.split(".")[0],
-                        attr.value.split(".")[1],
-                    )
-                )
-            elif day:
-                facts.append(
-                    Fact(
-                        "day",
-                        day,
-                        attr.key,
-                        ("PROP" if attr.subject_found else "")
-                        + attr.value.split(".")[0],
-                        attr.value.split(".")[1],
-                    )
-                )
+            subject_counter += 0 if attr.subject_found else 1
+            loc = f"{line_num}:{subject_counter}"
+            if subject_counter > 0:
+                if (not attr.subject_found) and (day is not None):
+                    facts.append(Fact(file_name, loc, "date", "day", day))
+                facts.append(Fact(file_name, loc, attr.rel, attr.obj_t, attr.obj))
         return facts
 
     headers: list[HeaderLine] = []
     for line_num, raw_line in enumerate(contents.splitlines()):
-        loc = f"{filename}:{line_num + 1}"
         if line := parse_line(raw_line):
             # facts.append(Fact("line", loc, "raw_line", raw_line))
             match line:
                 case HeaderLine() as header:
                     headers = process_header(headers, header)
                     if header.start_date:
+                        loc = f"{line_num}:0"
                         facts.append(
-                            Fact("line", loc, "LOGGED", "day", header.start_date)
+                            Fact(filename, loc, "date", "day", header.start_date)
                         )
 
                 case NormalLine(attrs):
-                    facts = record_normal(facts, get_day(headers), attrs, loc)
+                    facts = record_normal(
+                        facts, get_day(headers), attrs, filename, line_num
+                    )
 
     return facts
 
@@ -236,16 +220,14 @@ def write_csv(filepath: str, facts: list[Fact]) -> None:
     print(f"Writing {len(facts)} facts as CSV")
     with open(filepath, "w") as file:
         writer = csv.writer(file, csv.unix_dialect)
-        writer.writerow(("subject_type", "subject", "verbobject_type", "object"))
-        writer.writerows(
-            (f.subject_t, f.subject, f.verb, f.object_t, f.object) for f in facts
-        )
+        writer.writerow(("source", "id", "rel", "type", "value"))
+        writer.writerows((f.source, f.id, f.rel, f.value_type, f.value) for f in facts)
 
 
 def write_prolog(filepath: str, facts: list[Fact]) -> None:
     print(f"Writing {len(facts)} facts as Prolog")
     contents = (
-        f'fact("{f.subject_t}", "{f.subject}", "{f.verb}", "{f.object_t}", "{f.object}").'
+        f'fact("{f.source}", "{f.id}", "{f.rel}", "{f.value_type}", "{f.value}").'
         for f in facts
     )
     Path(filepath).write_text("\n".join(contents))
@@ -260,13 +242,15 @@ def write_json(filepath: str, facts: list[Fact]) -> None:
 def write_sqlite(filepath: str, facts: list[Fact]) -> None:
     CREATE_FACTS = """
     CREATE TABLE facts (
-        subject_t VARCHAR, subject VARCHAR,
-        veb VARCHAR,
-        object_t VARCAR, object VARCHAR
+        source VARCHAR,
+        id VARCHAR,
+        rel VARCHAR,
+        type VARCAR,
+        value VARCHAR
     )
     """
     INSERT_FACTS = """
-    INSERT INTO facts VALUES (:subject_t, :subject, :verb, :object_t, :object)
+    INSERT INTO facts VALUES (:source, :id, :rel, :value_type, :value)
     """
     print(f"Writing {len(facts)} facts as SQLite")
     with sqlite3.connect(filepath) as conn:
@@ -303,11 +287,12 @@ def main():
         days = set()
         printable_facts = ""
         for fact in facts:
-            if fact.subject_t != "line":
-                days.add(fact.subject)
-                printable_facts += f"{fact.subject_t + ': ' + fact.subject:22}"
-                printable_facts += f"{fact.verb:14}"
-                printable_facts += f"{fact.object_t}: {fact.object}\n"
+            if fact.id.endswith(":0"):
+                days.add(fact.id)
+                printable_facts += f"\n### {fact.value}\n\n"
+            if fact.rel != "date":
+                printable_facts += f"{fact.rel:14}"
+                printable_facts += f"{fact.value_type}: {fact.value}\n"
         print(f"Mega Log: {len(facts)} facts from {len(days)} days\n")
         print(printable_facts)
 
