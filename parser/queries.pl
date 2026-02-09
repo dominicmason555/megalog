@@ -21,8 +21,22 @@ td(Os) :- findall(O, todo_exists(O), Os).
 % All active Todos
 tda(Os) :- setof(O, (todo_exists(O), todo_active(O)), Os).
 
+% Active Todos and their creation dates
+todo_active_date(T, D) :-
+    fact(_,L,"new","todo",T),
+    fact(_,L,"date","day",D),
+    todo_active(T).
+
+% Active todos sorted by date
+todo_all_active(S) :-
+    findall([Created,Todo],
+        todo_active_date(Todo,Created), Ts),
+    sort(Ts,S).
+
 % Print all active Todos
-print_active() :- tda(Ts), print_list("Todo: ~s\n", Ts).
+print_active() :-
+    todo_all_active(Ts),
+    print_list("~w: ~w~n", Ts).
 
 % Format today as a string
 day_string(S) :- get_time(T), format_time(string(S), "%Y-%m-%d %A of Week %W", T).
