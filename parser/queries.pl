@@ -1,6 +1,10 @@
-% Print list of todos
+% Print list
 print_list(_, []) :- writeln("").
 print_list(Fstring, [H|T]) :- format(Fstring, H), print_list(Fstring, T).
+
+% Print ordered markdown list
+print_ordered_list(_, _, []) :- writeln("").
+print_ordered_list(Fstring, Num, [H|T]) :- format(Fstring, [Num|H]), Inc=Num+1, print_ordered_list(Fstring, Inc, T).
 
 % Get Todos from facts
 todo_exists(O) :- fact(_, _, _, "todo", O).
@@ -36,7 +40,9 @@ todo_all_active(S) :-
 % Print all active Todos
 print_active() :-
     todo_all_active(Ts),
-    print_list("~w: ~w~n", Ts).
+    length(Ts, NumTs),
+    format("## ~d Active Todos:\n\n", NumTs),
+    print_ordered_list("~d. ~w: `~w`~n", 1, Ts).
 
 % Format today as a string
 day_string(S) :- get_time(T), format_time(string(S), "%Y-%m-%d %A of Week %W", T).
@@ -53,5 +59,4 @@ query_entry() :-
     day_count(Numdays),
     format("# ~s\n\n", Day),
     format("~d Days Logged\n\n", Numdays),
-    format("## Active Todos:\n\n"),
     print_active().
