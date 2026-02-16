@@ -53,10 +53,13 @@ day_set(Days) :- findall(D, fact(_, _, "date", "day", D), Ds), setof(Day, member
 % Get number of unique days used as a date
 day_count(Numdays) :- day_set(Days), length(Days, Numdays).
 
+fact_count(Numfacts) :- findall(I, fact(_,I,_,_,_), Is), length(Is, Numfacts).
+
 % Entry to interactive query
 query_entry() :-
     day_string(Day),
     day_count(Numdays),
-    format("# ~s\n\n", Day),
-    format("~d Days Logged\n\n", Numdays),
+    fact_count(Numfacts),
+    format("# ~s~n", Day),
+    format("~d Facts from ~d Days Logged, ~1f Facts per Day~n", [Numfacts, Numdays, Numfacts/Numdays]),
     print_active().
