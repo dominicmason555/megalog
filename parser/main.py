@@ -106,7 +106,9 @@ def parse_key_val(line: str) -> list[ParsedAttr]:
         if value is not None:
             split = value.split(".")
             obj_t = split[0].lower()
-            obj = split[1].lower() if len(split) > 1 else obj_t
+            obj = obj_t
+            if len(split) > 1:
+                obj = ".".join(s.lower() for s in split[1:])
             state.attrs.append(
                 ParsedAttr(state.key.lower(), obj_t, obj, state.subject_found)
             )
