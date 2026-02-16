@@ -6,6 +6,24 @@ print_list(Fstring, [H|T]) :- format(Fstring, H), print_list(Fstring, T).
 print_ordered_list(_, _, []) :- writeln("").
 print_ordered_list(Fstring, Num, [H|T]) :- format(Fstring, [Num|H]), Inc=Num+1, print_ordered_list(Fstring, Inc, T).
 
+dated(S, ID, D) :- fact(S, ID, "date", "day", D).
+
+rated_percent(S, ID, O) :- fact(S, ID, "rate", "%", O).
+
+food(S, ID, V, T, O) :-
+    fact(S, ID, V, T, O),
+    (T="breakfast"; T="lunch"; T="dinner"; T="pud"; T="snack").
+
+
+food_dated_rated(S, Id, V, T, F, R, D) :- food(S, Id, V, T, F), rated_percent(S, Id, R), dated(S, Id, D).
+
+food_ranked() :-
+  findall([R,D,V,T,F], food_dated_rated(_, _, V, T, F, R, D), Rs),
+  sort(Rs, Sorted),
+  length(Rs, NumFoods),
+  format("Rated ~d meals:~n~n", [NumFoods]),
+  print_ordered_list("~d. ~s% ~s: ~s ~s ~s~n", 1, Sorted).
+
 % Get Todos from facts
 todo_exists(O) :- fact(_, _, _, "todo", O).
 todo_new(O) :- fact(_, _, "new", "todo", O).
@@ -27,8 +45,8 @@ tda(Os) :- setof(O, (todo_exists(O), todo_active(O)), Os).
 
 % Active Todos and their creation dates
 todo_active_date(T, D) :-
-    fact(_,L,"new","todo",T),
-    fact(_,L,"date","day",D),
+    fact(S,L,"new","todo",T),
+    fact(S,L,"date","day",D),
     todo_active(T).
 
 % Active todos sorted by date
