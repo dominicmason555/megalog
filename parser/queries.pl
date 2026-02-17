@@ -1,3 +1,5 @@
+:- use_module(library(http/html_write)).
+
 % Print list
 print_list(_, []) :- writeln("").
 print_list(Fstring, [H|T]) :- format(Fstring, H), print_list(Fstring, T).
@@ -72,6 +74,48 @@ day_set(Days) :- findall(D, fact(_, _, "date", "day", D), Ds), setof(Day, member
 day_count(Numdays) :- day_set(Days), length(Days, Numdays).
 
 fact_count(Numfacts) :- findall(I, fact(_,I,_,_,_), Is), length(Is, Numfacts).
+
+triple_html([Rel, Type, Object]) :-
+    phrase(html([
+        fact_triple([
+            fact_rel(Rel), " ", fact_type(Type), " ", fact_object(Object)
+        ]), "\n"]),
+    H),
+    print_html(H).
+
+fact_group_html([_, _, _ | RTO]) :-
+  writeln("<fact_group>"),
+  maplist(triple_html, RTO),
+  writeln("</fact_group>"),
+  writeln("<hr>").
+
+facts_html() :- facts_grouped(Facts), maplist(fact_group_html, Facts).
+
+id_set(Ids) :- findall(AllId, fact(_, AllId, _, _, _), AllIds), setof(Id, member(Id, AllIds), Ids).
+
+facts_from_ids([], Accum, Facts) :- sort(Accum, Facts).
+facts_from_ids([Id | Ids], Accum, Facts) :-
+    findall([V, T, O], fact(_, Id, V, T, O), IdFacts),
+    split_string(Id, ":", "", [LineStr, NumStr]),
+    atom_number(LineStr, Line),
+    atom_number(NumStr, Number),
+    facts_from_ids(Ids, [[Line, Number, Id | IdFacts] | Accum], Facts).
+
+facts_grouped(Facts) :-
+    id_set(Ids),
+    facts_from_ids(Ids, [], Facts).
+
+facts_grouped_to_file(Filename):-
+    facts_grouped(Facts),
+    open(Filename, write, Out),
+    write_canonical(Out, Facts),
+    close(Out).
+
+facts_grouped_to_html_file(Filename):-
+    open(Filename, write, Out),
+    with_output_to(Out, facts_html()),
+    % write_canonical(Out, Facts),
+    close(Out).
 
 % Entry to interactive query
 query_entry() :-
