@@ -35,6 +35,7 @@ class HeaderLine:
     level: int
     start_date: Optional[str]
     end_date: Optional[str]
+    title: Optional[str]
 
     @classmethod
     def parse(cls, line: str) -> Optional["HeaderLine"]:
@@ -50,11 +51,13 @@ class HeaderLine:
                     pos += 10
                     if len(line) >= pos + 13:
                         if end_date := match_date(line[pos + 3 : pos + 13]):
-                            return cls(level, start_date, end_date)
-                    return cls(level, start_date, None)
-                return cls(level, None, None)
+                            title = line[pos + 13 :] if len(line) > pos + 13 else None
+                            return cls(level, start_date, end_date, title)
+                    title = line[pos:] if len(line) > pos else None
+                    return cls(level, start_date, None, title)
+                return cls(level, None, None, None)
             else:
-                return cls(level, None, None)
+                return cls(level, None, None, None)
 
 
 def get_to_char(
@@ -101,18 +104,16 @@ NormalParserFun = Callable[[NormalParserState], NormalParserReturn]
 # Datemachine
 def parse_key_val(line: str) -> list[ParsedAttr]:
     def parse_value(state: NormalParserState) -> NormalParserReturn:
-        pos_change, value, ender = get_to_char(line[state.pos :], ",]", "[")
+        pos_change, value, ender = get_to_char(line[state.pos :], ";]", "[")
         state.pos += pos_change
         if value is not None:
             split = value.split(".")
-            obj_t = split[0].lower()
+            obj_t = split[0]
             obj = obj_t
             if len(split) > 1:
-                obj = ".".join(s.lower() for s in split[1:])
-            state.attrs.append(
-                ParsedAttr(state.key.lower(), obj_t, obj, state.subject_found)
-            )
-        if ender == ",":
+                obj = ".".join(s for s in split[1:])
+            state.attrs.append(ParsedAttr(state.key, obj_t, obj, state.subject_found))
+        if ender == ";":
             return parse_value, state
         return parse_outside, state
 
@@ -193,7 +194,7 @@ def parse_file(facts: list[Fact], filename: str, contents: str) -> list[Fact]:
             loc = f"{line_num}:{subject_counter}"
             if subject_counter > 0:
                 if (not attr.subject_found) and (day is not None):
-                    facts.append(Fact(file_name, loc, "date", "day", day))
+                    facts.append(Fact(file_name, loc, "Date", "Day", day))
                 facts.append(Fact(file_name, loc, attr.rel, attr.obj_t, attr.obj))
         return facts
 
@@ -207,8 +208,12 @@ def parse_file(facts: list[Fact], filename: str, contents: str) -> list[Fact]:
                     if header.start_date:
                         loc = f"{line_num}:0"
                         facts.append(
-                            Fact(filename, loc, "date", "day", header.start_date)
+                            Fact(filename, loc, "Date", "Day", header.start_date)
                         )
+                        if header.title:
+                            facts.append(
+                                Fact(filename, loc, "Title", "Title", header.title)
+                            )
 
                 case NormalLine(attrs):
                     facts = record_normal(
@@ -237,10 +242,12 @@ def write_prolog(filepath: str, facts: list[Fact]) -> None:
 
 def write_ntriples(filepath: str, facts: list[Fact]) -> None:
     print(f"Writing {len(facts)} facts as N-Triples")
-    contents = (
-        f"<{f.source}/{f.id.replace(':', '/')}> <{f.rel}> <{f.value_type}/{f.value}> ."
+    contents = [
+        f"<https://rdf.domson.dev/sources/megalog/{f.source}/{f.id.replace(':', '/')}> "
+        f"<https://rdf.domson.dev/predicates/{f.rel}> "
+        f'"{f.value}"^^<https://rdf.domson.dev/types/{f.value_type}> .'
         for f in facts
-    )
+    ]
     Path(filepath).write_text("\n".join(contents))
 
 
@@ -301,10 +308,10 @@ def main():
         days = set()
         printable_facts = ""
         for fact in facts:
-            if fact.id.endswith(":0"):
+            if fact.id.endswith(":0") and fact.rel == "Date":
                 days.add(fact.id)
                 printable_facts += f"\n### {fact.value}\n\n"
-            if fact.rel != "date":
+            if fact.rel != "Date":
                 printable_facts += f"{fact.rel:14}"
                 printable_facts += f"{fact.value_type}: {fact.value}\n"
         print(f"Mega Log: {len(facts)} facts from {len(days)} days\n")

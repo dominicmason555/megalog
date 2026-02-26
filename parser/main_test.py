@@ -31,22 +31,28 @@ I [Ate: Lunch.Brackets], delicious.
 
 
 def test_HeaderLine():
-    assert HeaderLine.parse("# 2026-01-01") == HeaderLine(1, "2026-01-01", None)
-    assert HeaderLine.parse("# Nonsense") == HeaderLine(1, None, None)
+    assert HeaderLine.parse("# 2026-01-01") == HeaderLine(1, "2026-01-01", None, None)
+    assert HeaderLine.parse("# Nonsense") == HeaderLine(1, None, None, None)
     assert HeaderLine.parse("## 2026-01-01 - 2026-nope") == HeaderLine(
-        2, "2026-01-01", None
+        2, "2026-01-01", None, None
     )
     assert HeaderLine.parse("# 2026-01-01 - 2026-01-02") == HeaderLine(
-        1, "2026-01-01", "2026-01-02"
+        1, "2026-01-01", "2026-01-02", None
     )
-    assert HeaderLine.parse("# 2026-01-32") == HeaderLine(1, None, None)
+    assert HeaderLine.parse("# 2026-01-32") == HeaderLine(1, None, None, None)
     assert HeaderLine.parse(" 2026-01-01") is None
     assert HeaderLine.parse("2026-01-01") is None
 
 
 def test_NormalLine():
     assert NormalLine.parse("Text [attr: maybe] more text") == NormalLine(
-        [ParsedAttr("attr", "maybe", False)]
+        [
+            ParsedAttr(
+                "attr",
+                "maybe",
+                False,
+            )
+        ]
     )
     assert NormalLine.parse("Text [tag: maybe] more text [attr:: maybe]") == NormalLine(
         [ParsedAttr("tag", "maybe", False), ParsedAttr("attr", "maybe", True)]
@@ -60,8 +66,8 @@ def test_NormalLine():
 
 def test_parse_line():
     lines = TEST_DOC.splitlines()
-    assert parse_line(lines[2]) == HeaderLine(1, None, None)
-    assert parse_line(lines[6]) == HeaderLine(3, "2026-01-01", None)
+    assert parse_line(lines[2]) == HeaderLine(1, None, None, None)
+    assert parse_line(lines[6]) == HeaderLine(3, "2026-01-01", None, None)
     assert parse_line(lines[8]) == NormalLine([ParsedAttr("shoulddo", "no", False)])
     assert parse_line(lines[9]) == NormalLine([ParsedAttr("shoulddo", "yes", True)])
     assert parse_line(lines[14]) == NormalLine(
