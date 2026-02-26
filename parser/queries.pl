@@ -8,29 +8,54 @@ print_list(Fstring, [H|T]) :- format(Fstring, H), print_list(Fstring, T).
 print_ordered_list(_, _, []) :- writeln("").
 print_ordered_list(Fstring, Num, [H|T]) :- format(Fstring, [Num|H]), Inc=Num+1, print_ordered_list(Fstring, Inc, T).
 
-dated(S, ID, D) :- fact(S, ID, "date", "day", D).
+dated(S, ID, D) :- fact(S, ID, "Date", "Day", D).
 
-rated_percent(S, ID, O) :- fact(S, ID, "rate", "%", O).
+rated_percent(S, ID, O) :- fact(S, ID, "Rate", "%", O).
 
-food(S, ID, V, T, O) :-
-    fact(S, ID, V, T, O),
-    (T="breakfast"; T="lunch"; T="dinner"; T="pud"; T="snack").
-
-
-food_dated_rated(S, Id, V, T, F, R, D) :- food(S, Id, V, T, F), rated_percent(S, Id, R), dated(S, Id, D).
+type_alias_dated_rated(A, S, Id, V, T, F, R, D) :-
+    fact(S, Id, V, T, F),
+    type_alias(T, A),
+    rated_percent(S, Id, R),
+    dated(S, Id, D).
 
 food_ranked() :-
-  findall([R,D,V,T,F], food_dated_rated(_, _, V, T, F, R, D), Rs),
-  sort(Rs, Sorted),
-  length(Rs, NumFoods),
-  format("Rated ~d meals:~n~n", [NumFoods]),
-  print_ordered_list("~d. ~s% ~s: ~s ~s ~s~n", 1, Sorted).
+   findall([R,D,V,T,F,S], (type_alias_dated_rated("Food", _, _, V, T, F, R, D), all_view_url_from_type_string(T,F,S)), Rs),
+   sort(Rs, Sorted),
+   length(Rs, NumFoods),
+   format("Rated ~d meals:~n~n", [NumFoods]),
+   print_ordered_list("~d. ~s% ~s: ~s ~s ~s~s~n", 1, Sorted).
+
+type_alias(T, T).
+type_alias(T, A) :-
+    fact(S, I, "NewAlias", "Type", A),
+    fact(S, I, "AddAlias", "Type", T).
+
+url_prefix_type(T, U) :-
+    fact(S, I, "NewURLType", "Type", T),
+    fact(S, I, "AddViewURL", "URLPrefix", U).
+
+view_url_from_id(S, I, Url) :-
+    fact(S, I, _, T, O),
+    type_alias(T, A),
+    url_prefix_type(A, U),
+    string_concat(U, O, Url).
+
+view_url_from_type(T, O, Url) :-
+    type_alias(T, A),
+    fact(S, I, _, A, O),
+    fact(S, I, _, IDType, IDO),
+    url_prefix_type(IDType, U),
+    string_concat(U, IDO, Url).
+
+all_view_url_from_type_string(T, O, S) :-
+    findall(U, view_url_from_type(T, O, U), Us),
+    with_output_to(string(S), maplist(format(" ~s"), Us)).
 
 % Get Todos from facts
-todo_exists(O) :- fact(_, _, _, "todo", O).
-todo_new(O) :- fact(_, _, "new", "todo", O).
-todo_did(O) :- fact(_, _, "did", "todo", O).
-todo_cancelled(O) :- fact(_, _, "cancelled", "todo", O).
+todo_exists(O) :- fact(_, _, _, "Todo", O).
+todo_new(O) :- fact(_, _, "New", "Todo", O).
+todo_did(O) :- fact(_, _, "Did", "Todo", O).
+todo_cancelled(O) :- fact(_, _, "Cancelled", "Todo", O).
 
 % Todos which were created more times than they were done or cancelled
 todo_active(O) :-
@@ -47,8 +72,8 @@ tda(Os) :- setof(O, (todo_exists(O), todo_active(O)), Os).
 
 % Active Todos and their creation dates
 todo_active_date(T, D) :-
-    fact(S,L,"new","todo",T),
-    fact(S,L,"date","day",D),
+    fact(S,L,"New","Todo",T),
+    fact(S,L,"Date","Day",D),
     todo_active(T).
 
 % Active todos sorted by date
@@ -68,7 +93,7 @@ print_active() :-
 day_string(S) :- get_time(T), format_time(string(S), "%Y-%m-%d %A of Week %W", T).
 
 % Get all unique days used as a date
-day_set(Days) :- findall(D, fact(_, _, "date", "day", D), Ds), setof(Day, member(Day, Ds), Days).
+day_set(Days) :- findall(D, fact(_, _, "Date", "Day", D), Ds), setof(Day, member(Day, Ds), Days).
 
 % Get number of unique days used as a date
 day_count(Numdays) :- day_set(Days), length(Days, Numdays).
