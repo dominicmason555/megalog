@@ -18,11 +18,11 @@ type_alias_dated_rated(A, S, Id, V, T, F, R, D) :-
     rated_percent(S, Id, R),
     dated(S, Id, D).
 
-food_ranked() :-
-   findall([R,D,V,T,F,S], (type_alias_dated_rated("Food", _, _, V, T, F, R, D), all_view_url_from_type_string(T,F,S)), Rs),
-   sort(Rs, Sorted),
-   length(Rs, NumFoods),
-   format("Rated ~d meals:~n~n", [NumFoods]),
+type_ranked(Type) :-
+   findall([R,D,V,T,F,S], (type_alias_dated_rated(Type, _, _, V, T, F, R, D), all_view_url_markdown(T,F,S)), Rs),
+   sort(0, @>, Rs, Sorted),
+   length(Rs, Num),
+   format("## Rated ~d ~ss:~n~n", [Num, Type]),
    print_ordered_list("~d. ~s% ~s: ~s ~s ~s~s~n", 1, Sorted).
 
 type_alias(T, T).
@@ -40,16 +40,30 @@ view_url_from_id(S, I, Url) :-
     url_prefix_type(A, U),
     string_concat(U, O, Url).
 
-view_url_from_type(T, O, Url) :-
+view_url_from_type(A, O, Url) :-
     type_alias(T, A),
-    fact(S, I, _, A, O),
+    fact(_, _, _, T, O),
+    fact(S, I, _, _, O),
     fact(S, I, _, IDType, IDO),
     url_prefix_type(IDType, U),
     string_concat(U, IDO, Url).
 
+view_url_from_type_md(A, O, Url) :-
+    type_alias(T, A),
+    fact(_, _, _, T, O),
+    fact(S, I, _, _, O),
+    fact(S, I, _, IDType, IDO),
+    url_prefix_type(IDType, U),
+    format(string(Url), "[~s](~s~s)", [IDType, U, IDO]).
+
 all_view_url_from_type_string(T, O, S) :-
     findall(U, view_url_from_type(T, O, U), Us),
     with_output_to(string(S), maplist(format(" ~s"), Us)).
+
+all_view_url_markdown(T, O, S) :-
+    findall(U, view_url_from_type_md(T, O, U), Us),
+    sort(Us, Sorted),
+    with_output_to(string(S), maplist(format(" ~s"), Sorted)).
 
 % Get Todos from facts
 todo_exists(O) :- fact(_, _, _, "Todo", O).
