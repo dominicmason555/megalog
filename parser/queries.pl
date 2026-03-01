@@ -96,6 +96,77 @@ todo_all_active(S) :-
         todo_active_date(Todo,Created), Ts),
     sort(Ts,S).
 
+goal_exists(G) :- fact(_, _, "New", "Goal", G).
+
+goal_start_date(G, D) :-
+    fact(S, I, "New", "Goal", G),
+    fact(S, I, "Date", "Day", D).
+
+goal_end_date(G, D) :-
+    fact(S, I, "New", "Goal", G),
+    fact(S, I, "EndDate", "Day", D).
+
+goal_start_end(G, S, E) :- goal_start_date(G, S), goal_end_date(G, E).
+
+goal_active_as_of(Goal, Day) :-
+    goal_start_end(Goal, StartDate, EndDate),
+    StartDate @=< Day,
+    EndDate @>= Day.
+
+goal_active_today(Goal) :-
+    get_time(Time),
+    format_time(string(Today), "%Y-%m-%d", Time),
+    goal_active_as_of(Goal, Today).
+
+goal_did_active(Goal) :-
+    fact(S, I, "Did", "Goal", Goal),
+    fact(S, I, "Date", "Day", Day),
+    goal_active_as_of(Goal, Day).
+
+goal_did_times(Goal, NumTimes) :-
+    findall(Goal, goal_did_active(Goal), Times),
+    length(Times, NumTimes).
+
+goal_already_done_times(G, T) :-
+    fact(S, I, "New", "Goal", G),
+    fact(S, I, "Done", "Times", N),
+    atom_number(N, T).
+
+goal_total_done_times(Goal, Times) :-
+  goal_already_done_times(Goal, DoneTimes) ->
+    goal_did_times(Goal, DidTimes),
+    Times is DidTimes + DoneTimes;
+  goal_did_times(Goal, Times).
+
+zip4([], [], [], [], []).
+zip4([A | As], [B | Bs], [C | Cs], [D | Ds], [[A, B, C, D] | ABCDs]) :- zip4(As, Bs, Cs, Ds, ABCDs).
+
+goals_times(UniqueGoals, GT) :-
+    maplist(goal_start_date, UniqueGoals, StartDates),
+    maplist(goal_end_date, UniqueGoals, EndDates),
+    maplist(goal_total_done_times, UniqueGoals, DoneTimes),
+    zip4(StartDates, EndDates, UniqueGoals, DoneTimes, GT).
+
+all_goals_times(GT) :-
+    setof(Goal, goal_active_today(Goal), UniqueGoals),
+    goals_times(UniqueGoals, GT).
+
+active_today_goals_times(GT) :-
+    setof(Goal, goal_exists(Goal), UniqueGoals),
+    goals_times(UniqueGoals, GT).
+
+print_all_goals() :-
+    all_goals_times(GTs),
+    length(GTs, NumGTs),
+    format("## ~d Goals:\n\n", NumGTs),
+    print_ordered_list("~d. ~w - ~w: `~w` Done ~d Times~n", 1, GTs).
+
+print_today_goals() :-
+    active_today_goals_times(GTs),
+    length(GTs, NumGTs),
+    format("## ~d Active Goals:\n\n", NumGTs),
+    print_ordered_list("~d. ~w - ~w: `~w` Done ~d Times~n", 1, GTs).
+
 % Print all active Todos
 print_active() :-
     todo_all_active(Ts),
@@ -163,4 +234,5 @@ query_entry() :-
     fact_count(Numfacts),
     format("# ~s~n", Day),
     format("~d Facts from ~d Days Logged, ~1f Facts per Day~n", [Numfacts, Numdays, Numfacts/Numdays]),
-    print_active().
+    print_active,
+    print_today_goals.

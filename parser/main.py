@@ -176,43 +176,50 @@ def parse_file(facts: list[Fact], filename: str, contents: str) -> list[Fact]:
         headers.append(header)
         return headers
 
-    def get_day(headers: list[HeaderLine]) -> Optional[str]:
+    def get_day(headers: list[HeaderLine]) -> Optional[HeaderLine]:
         for header in reversed(headers):
             if header.start_date:
-                return header.start_date
+                return header
 
     def record_normal(
         facts: list[Fact],
-        day: Optional[str],
+        head: Optional[HeaderLine],
         attrs: list[ParsedAttr],
         file_name: str,
         line_num: int,
     ) -> list[Fact]:
         subject_counter = 0
+        source = f"megalog/{file_name}"
         for attr in attrs:
             subject_counter += 0 if attr.subject_found else 1
             loc = f"{line_num}:{subject_counter}"
             if subject_counter > 0:
-                if (not attr.subject_found) and (day is not None):
-                    facts.append(Fact(file_name, loc, "Date", "Day", day))
-                facts.append(Fact(file_name, loc, attr.rel, attr.obj_t, attr.obj))
+                if (
+                    (not attr.subject_found)
+                    and (head is not None)
+                    and (head.start_date is not None)
+                ):
+                    facts.append(Fact(source, loc, "Date", "Day", head.start_date))
+                    if head.end_date is not None:
+                        facts.append(Fact(source, loc, "EndDate", "Day", head.end_date))
+                facts.append(Fact(source, loc, attr.rel, attr.obj_t, attr.obj))
         return facts
 
     headers: list[HeaderLine] = []
+    source = f"megalog/{filename}"
     for line_num, raw_line in enumerate(contents.splitlines()):
         if line := parse_line(raw_line):
-            # facts.append(Fact("line", loc, "raw_line", raw_line))
             match line:
                 case HeaderLine() as header:
                     headers = process_header(headers, header)
                     if header.start_date:
                         loc = f"{line_num}:0"
                         facts.append(
-                            Fact(filename, loc, "Date", "Day", header.start_date)
+                            Fact(source, loc, "Date", "Day", header.start_date)
                         )
                         if header.title:
                             facts.append(
-                                Fact(filename, loc, "Title", "Title", header.title)
+                                Fact(source, loc, "Title", "Title", header.title)
                             )
 
                 case NormalLine(attrs):
@@ -237,7 +244,7 @@ def write_prolog(filepath: str, facts: list[Fact]) -> None:
         f'fact("{f.source}", "{f.id}", "{f.rel}", "{f.value_type}", "{f.value}").'
         for f in facts
     )
-    Path(filepath).write_text("\n".join(contents))
+    Path(filepath).write_text("\n".join(contents) + "\n")
 
 
 def write_ntriples(filepath: str, facts: list[Fact]) -> None:
@@ -248,7 +255,7 @@ def write_ntriples(filepath: str, facts: list[Fact]) -> None:
         f'"{f.value}"^^<https://rdf.domson.dev/types/{f.value_type}> .'
         for f in facts
     ]
-    Path(filepath).write_text("\n".join(contents))
+    Path(filepath).write_text("\n".join(contents) + "\n")
 
 
 def write_json(filepath: str, facts: list[Fact]) -> None:
