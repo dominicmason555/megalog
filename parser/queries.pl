@@ -175,7 +175,7 @@ print_active() :-
     print_ordered_list("~d. ~w: `~w`~n", 1, Ts).
 
 % Format today as a string
-day_string(S) :- get_time(T), format_time(string(S), "%Y-%m-%d %A of Week %W", T).
+day_string(S) :- get_time(T), format_time(string(S), "%Y-%m-%d %A of Week %V", T).
 
 % Get all unique days used as a date
 day_set(Days) :- findall(D, fact(_, _, "Date", "Day", D), Ds), setof(Day, member(Day, Ds), Days).

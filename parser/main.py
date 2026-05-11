@@ -51,9 +51,13 @@ class HeaderLine:
                     pos += 10
                     if len(line) >= pos + 13:
                         if end_date := match_date(line[pos + 3 : pos + 13]):
-                            title = line[pos + 13 :] if len(line) > pos + 13 else None
+                            title = (
+                                line[pos + 13 :].strip()
+                                if len(line) > pos + 13
+                                else None
+                            )
                             return cls(level, start_date, end_date, title)
-                    title = line[pos:] if len(line) > pos else None
+                    title = line[pos:].strip() if len(line) > pos else None
                     return cls(level, start_date, None, title)
                 return cls(level, None, None, None)
             else:
@@ -192,7 +196,7 @@ def parse_file(facts: list[Fact], filename: str, contents: str) -> list[Fact]:
         source = f"megalog/{file_name}"
         for attr in attrs:
             subject_counter += 0 if attr.subject_found else 1
-            loc = f"{line_num}:{subject_counter}"
+            loc = f"{line_num}/{subject_counter}"
             if subject_counter > 0:
                 if (
                     (not attr.subject_found)
@@ -213,7 +217,7 @@ def parse_file(facts: list[Fact], filename: str, contents: str) -> list[Fact]:
                 case HeaderLine() as header:
                     headers = process_header(headers, header)
                     if header.start_date:
-                        loc = f"{line_num}:0"
+                        loc = f"{line_num}/0"
                         facts.append(
                             Fact(source, loc, "Date", "Day", header.start_date)
                         )
@@ -250,7 +254,7 @@ def write_prolog(filepath: str, facts: list[Fact]) -> None:
 def write_ntriples(filepath: str, facts: list[Fact]) -> None:
     print(f"Writing {len(facts)} facts as N-Triples")
     contents = [
-        f"<https://rdf.domson.dev/sources/megalog/{f.source}/{f.id.replace(':', '/')}> "
+        f"<https://rdf.domson.dev/sources/{f.source}/{f.id}> "
         f"<https://rdf.domson.dev/predicates/{f.rel}> "
         f'"{f.value}"^^<https://rdf.domson.dev/types/{f.value_type}> .'
         for f in facts
@@ -315,7 +319,7 @@ def main():
         days = set()
         printable_facts = ""
         for fact in facts:
-            if fact.id.endswith(":0") and fact.rel == "Date":
+            if fact.id.endswith("/0") and fact.rel == "Date":
                 days.add(fact.id)
                 printable_facts += f"\n### {fact.value}\n\n"
             if fact.rel != "Date":
