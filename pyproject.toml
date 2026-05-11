@@ -1,21 +1,17 @@
 [project]
-name = "megalog"
+name = "facts"
 version = "0.1.0"
-description = "Add your description here"
+description = "Extracts, stores, and outputs Facts"
 readme = "README.md"
-authors = [{ name = "Dominic Mason", email = "dominicmason555@gmail.com" }]
-requires-python = ">=3.12"
-dependencies = ["pytest>=9.0.3"]
+requires-python = ">=3.10"
+dependencies = ["aw-client>=0.5.15", "pytest>=9.0.3"]
 
 [project.scripts]
-megalog = "megalog:main"
-sqlite_facts = "sqlite_facts:main"
+get_all = "facts.get_all:main"
+megalog = "facts.megalog:main"
+from_sqlite = "facts.from_sqlite:main"
+from_aw = "facts.from_aw:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-
-[tool.uv.workspace]
-members = [
-    "sqlite_facts",
-]

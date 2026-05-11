@@ -7,7 +7,7 @@ from typing import Self
 
 from .fact import Fact
 
-CONFIG_FILE = "config.toml"
+CONFIG_FILE = "config_from_sqlite.toml"
 
 
 @dataclasses.dataclass
@@ -34,15 +34,6 @@ class Database:
         return cls(fields=fields, **rest)
 
 
-@dataclasses.dataclass
-class Fact:
-    source: str
-    id: str
-    rel: str
-    value_type: str
-    value: str
-
-
 def process_fields(db: Database) -> list[Fact]:
     facts = []
     filepath = os.getenv(db.path_prefix_env, "") + "/" + db.path
@@ -53,9 +44,6 @@ def process_fields(db: Database) -> list[Fact]:
     conn = sqlite3.connect(filepath)
 
     for field in db.fields:
-        print(
-            f"Processing {db.source}/{field.source_suffix}/{field.name} ({field.type})"
-        )
         cur = conn.cursor()
         cur.execute(field.query)
         rows = cur.fetchall()
@@ -66,7 +54,7 @@ def process_fields(db: Database) -> list[Fact]:
     return facts
 
 
-def main():
+def get_facts() -> list[Fact]:
     with open(CONFIG_FILE, "rb") as tomlfile:
         config = tomllib.load(tomlfile)
 
@@ -74,10 +62,16 @@ def main():
 
     for db_vals in config["databases"].values():
         db = Database.from_dict(**db_vals)
-        print(f"Parsed database config: {db.source}")
+        print(f"Reading SQLite database: {db.source}")
         facts += process_fields(db)
 
-    print(facts)
+    return facts
+
+
+def main():
+    facts: list[Fact] = get_facts()
+
+    print("\n".join(f.to_json() for f in facts))
 
 
 if __name__ == "__main__":

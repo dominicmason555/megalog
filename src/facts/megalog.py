@@ -1,25 +1,22 @@
 #!/usr/bin/env python3
 
-import csv
-import json
-import sqlite3
 import sys
 import tomllib
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Callable, Optional
 
-CONF_FILE = "config.toml"
+from .fact import (
+    Fact,
+    write_csv,
+    write_json,
+    write_ntriples,
+    write_prolog,
+    write_sqlite,
+)
 
-
-@dataclass
-class Fact:
-    source: str
-    id: str
-    rel: str
-    value_type: str
-    value: str
+CONF_FILE = "config_megalog.toml"
 
 
 def match_date(text: str) -> Optional[str]:
@@ -234,61 +231,7 @@ def parse_file(facts: list[Fact], filename: str, contents: str) -> list[Fact]:
     return facts
 
 
-def write_csv(filepath: str, facts: list[Fact]) -> None:
-    print(f"Writing {len(facts)} facts as CSV")
-    with open(filepath, "w") as file:
-        writer = csv.writer(file, csv.unix_dialect)
-        writer.writerow(("source", "id", "rel", "type", "value"))
-        writer.writerows((f.source, f.id, f.rel, f.value_type, f.value) for f in facts)
-
-
-def write_prolog(filepath: str, facts: list[Fact]) -> None:
-    print(f"Writing {len(facts)} facts as Prolog")
-    contents = (
-        f'fact("{f.source}", "{f.id}", "{f.rel}", "{f.value_type}", "{f.value}").'
-        for f in facts
-    )
-    Path(filepath).write_text("\n".join(contents) + "\n")
-
-
-def write_ntriples(filepath: str, facts: list[Fact]) -> None:
-    print(f"Writing {len(facts)} facts as N-Triples")
-    contents = [
-        f"<https://rdf.domson.dev/sources/{f.source}/{f.id}> "
-        f"<https://rdf.domson.dev/predicates/{f.rel}> "
-        f'"{f.value}"^^<https://rdf.domson.dev/types/{f.value_type}> .'
-        for f in facts
-    ]
-    Path(filepath).write_text("\n".join(contents) + "\n")
-
-
-def write_json(filepath: str, facts: list[Fact]) -> None:
-    print(f"Writing {len(facts)} facts as JSON")
-    with open(filepath, "w") as file:
-        json.dump(facts, file, default=asdict)
-
-
-def write_sqlite(filepath: str, facts: list[Fact]) -> None:
-    CREATE_FACTS = """
-    CREATE TABLE facts (
-        source VARCHAR,
-        id VARCHAR,
-        rel VARCHAR,
-        type VARCAR,
-        value VARCHAR
-    )
-    """
-    INSERT_FACTS = """
-    INSERT INTO facts VALUES (:source, :id, :rel, :value_type, :value)
-    """
-    print(f"Writing {len(facts)} facts as SQLite")
-    with sqlite3.connect(filepath) as conn:
-        conn.execute("DROP TABLE IF EXISTS facts")
-        conn.execute(CREATE_FACTS)
-        conn.executemany(INSERT_FACTS, map(asdict, facts))
-
-
-def main():
+def get_facts() -> list[Fact]:
     with open(CONF_FILE, "rb") as tomlfile:
         config = tomllib.load(tomlfile)
 
@@ -298,6 +241,13 @@ def main():
     for filename, filepath in paths.items():
         contents = Path(filepath).expanduser().read_text()
         facts = parse_file(facts, filename, contents)
+
+    return facts
+
+
+def main():
+
+    facts = get_facts()
 
     if len(sys.argv) > 1:
         if sys.argv[1].endswith(".csv"):

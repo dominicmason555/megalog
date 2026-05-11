@@ -9,12 +9,5 @@ wheels/
 # Virtual environments
 .venv
 
-config.toml
-out.csv
-out.json
-out.pl
-out.db
-out.nt
-out.txt
-out.html
-test.html
+# Config files
+config_*.toml
