@@ -1,5 +1,5 @@
 # Generate facts
-python ./main.py out.pl
+uv run get_all
 
 # Run the Prolog `query_entry` goal and display markdown with glow
-swipl -s out.pl -s queries.pl -g "query_entry()" -g halt | glow
+swipl -s "$WELLKNOWN_SYNC_PERSONAL/facts/all.pl" -s queries.pl -g "query_entry()" -g halt | glow
