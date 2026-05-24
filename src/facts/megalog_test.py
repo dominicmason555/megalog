@@ -46,22 +46,37 @@ def test_HeaderLine():
 
 def test_NormalLine():
     assert NormalLine.parse("Text [attr: maybe] more text") == NormalLine(
-        [ParsedAttr("attr", "maybe", "maybe", False)]
+        [ParsedAttr("attr", "maybe", "maybe", False)],
+        ["Text ", ParsedAttr("attr", "maybe", "maybe", False), " more text"],
     )
     assert NormalLine.parse("Text [tag: maybe] more text [attr:: maybe]") == NormalLine(
         [
             ParsedAttr("tag", "maybe", "maybe", False),
             ParsedAttr("attr", "maybe", "maybe", True),
-        ]
+        ],
+        [
+            "Text ",
+            ParsedAttr("tag", "maybe", "maybe", False),
+            " more text ",
+            ParsedAttr("attr", "maybe", "maybe", True),
+        ],
     )
     assert NormalLine.parse(
-        "Text [attr: maybe] more [] [attr:] [attr] [: maybe] [attr: may:be] text [attr:   maybe  ]"
+        "Text [attr: maybe] more [ hmm [] [attr:] [attr] [: maybe] [attr: may:be] text [attr:   maybe  ]"
     ) == NormalLine(
         [
             ParsedAttr("attr", "maybe", "maybe", False),
             ParsedAttr("attr", "may:be", "may:be", False),
             ParsedAttr("attr", "maybe  ", "maybe  ", False),
-        ]
+        ],
+        [
+            "Text ",
+            ParsedAttr("attr", "maybe", "maybe", False),
+            " more [ hmm [] [attr:] [attr] [: maybe] ",
+            ParsedAttr("attr", "may:be", "may:be", False),
+            " text ",
+            ParsedAttr("attr", "maybe  ", "maybe  ", False),
+        ],
     )
 
 
@@ -70,12 +85,12 @@ def test_parse_line():
     assert parse_line(lines[2]) == HeaderLine(1, None, None, None)
     assert parse_line(lines[6]) == HeaderLine(3, "2026-01-01", None, "The first day")
     assert parse_line(lines[8]) == NormalLine(
-        [ParsedAttr("ShouldDo", "no", "no", False)]
+        [ParsedAttr("ShouldDo", "no", "no", False)], []
     )
     assert parse_line(lines[9]) == NormalLine(
-        [ParsedAttr("ShouldDo", "yes", "yes", True)]
+        [ParsedAttr("ShouldDo", "yes", "yes", True)], []
     )
     assert parse_line(lines[14]) == NormalLine(
-        [ParsedAttr("Ate", "Lunch", "Brackets", False)]
+        [ParsedAttr("Ate", "Lunch", "Brackets", False)], []
     )
     assert parse_line(lines[24]) is None

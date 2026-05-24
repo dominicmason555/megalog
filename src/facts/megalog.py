@@ -63,23 +63,23 @@ class HeaderLine:
 
 def get_to_char(
     line: str, end: str, banned: str
-) -> tuple[int, Optional[str], Optional[str]]:
+) -> tuple[int, Optional[str], Optional[str], str]:
     pos = 0
     value = ""
     while pos < len(line):
         if line[pos] in banned:
             pos += 1
-            return pos, None, None
+            return pos, None, None, value + line[pos - 1]
         elif line[pos] in end:
             pos += 1
             if value != "":
-                return pos, value, line[pos - 1]
-            return pos, None, None
+                return pos, value, line[pos - 1], value + line[pos - 1]
+            return pos, None, None, value + line[pos - 1]
         else:
             if (value != "") or (not line[pos].isspace()):
                 value += line[pos]
             pos += 1
-    return pos, None, None
+    return pos, None, None, value
 
 
 @dataclass
@@ -90,11 +90,16 @@ class ParsedAttr:
     subject_found: bool
 
 
+Chunk = ParsedAttr | str
+
+
 @dataclass
 class NormalParserState:
     pos: int
     key: str
+    text: str
     attrs: list[ParsedAttr]
+    chunks: list[Chunk]
     subject_found: bool
 
 
@@ -103,9 +108,9 @@ NormalParserFun = Callable[[NormalParserState], NormalParserReturn]
 
 
 # Datemachine
-def parse_key_val(line: str) -> list[ParsedAttr]:
+def parse_key_val(line: str) -> tuple[list[ParsedAttr], list[Chunk]]:
     def parse_value(state: NormalParserState) -> NormalParserReturn:
-        pos_change, value, ender = get_to_char(line[state.pos :], ";]", "[")
+        pos_change, value, ender, text = get_to_char(line[state.pos :], ";]", "[")
         state.pos += pos_change
         if value is not None:
             split = value.split(".")
@@ -113,20 +118,29 @@ def parse_key_val(line: str) -> list[ParsedAttr]:
             obj = obj_t
             if len(split) > 1:
                 obj = ".".join(s for s in split[1:])
-            state.attrs.append(ParsedAttr(state.key, obj_t, obj, state.subject_found))
+            attr = ParsedAttr(state.key, obj_t, obj, state.subject_found)
+            state.attrs.append(attr)
+            state.chunks.append(attr)
+        # else:
+        #     state.text += text
         if ender == ";":
             return parse_value, state
         return parse_outside, state
 
     def parse_key(state: NormalParserState) -> NormalParserReturn:
-        pos_change, key, _ = get_to_char(line[state.pos :], ":", "[]")
+        pos_change, key, _, text = get_to_char(line[state.pos :], ":", "[]")
         state.pos += pos_change
         if key is not None:
+            if state.text:
+                state.chunks.append(state.text)
+                state.text = ""
             if len(line) >= state.pos and line[state.pos] == ":":
                 state.pos += 1
                 state.subject_found = True
             state.key = key
             return parse_value, state
+        else:
+            state.text += "[" + text
         return parse_outside, state
 
     def parse_outside(state: NormalParserState) -> NormalParserReturn:
@@ -135,24 +149,29 @@ def parse_key_val(line: str) -> list[ParsedAttr]:
                 state.pos += 1
                 state.subject_found = False
                 return parse_key, state
+            else:
+                state.text += line[state.pos]
             state.pos += 1
+        if state.text:
+            state.chunks.append(state.text)
         return None, state
 
-    state = NormalParserState(0, "", [], False)
+    state = NormalParserState(0, "", "", [], [], False)
     parser: Optional[NormalParserFun] = parse_outside
     while parser is not None:
         parser, state = parser(state)
-    return state.attrs
+    return state.attrs, state.chunks
 
 
 @dataclass
 class NormalLine:
     attrs: list[ParsedAttr]
+    chunks: list[Chunk]
 
     @classmethod
     def parse(cls, line: str) -> Optional["NormalLine"]:
         if attrs := parse_key_val(line):
-            return cls(attrs)
+            return cls(*attrs)
 
 
 Line = NormalLine | HeaderLine
