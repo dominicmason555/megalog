@@ -59,8 +59,12 @@ def write_json(filepath: str, facts: list[Fact]) -> None:
         json.dump(facts, file, default=asdict)
 
 
-def write_sqlite(filepath: str, facts: list[Fact]) -> None:
-    CREATE_FACTS = """
+SQLITE_STATEMENTS = [
+    """DROP VIEW IF EXISTS "ToPlay" """,
+    """DROP VIEW IF EXISTS "UnfinishedGames" """,
+    """DROP VIEW IF EXISTS "UnfinishedBooks" """,
+    """DROP TABLE IF EXISTS "facts" """,
+    """
     CREATE TABLE facts (
         source VARCHAR,
         id VARCHAR,
@@ -68,12 +72,74 @@ def write_sqlite(filepath: str, facts: list[Fact]) -> None:
         type VARCAR,
         value VARCHAR
     )
+    """,
     """
+CREATE VIEW "ToPlay" AS
+WITH Games
+    AS (SELECT "id",
+               "value" AS "Title"
+        FROM facts
+        WHERE type = 'Game'
+        AND "rel" = 'ToPlay'),
+    Durations
+    AS (SELECT "id",
+               Cast(Rtrim("value", 'h') AS INTEGER) AS "Takes Hours"
+        FROM facts
+        WHERE type = 'Duration'
+        AND "rel" = 'Takes')
+SELECT "Title",
+       "Takes Hours"
+FROM Games
+       LEFT JOIN Durations
+              ON Games.id = Durations.id
+ORDER BY "Takes Hours"
+    """,
+    """
+CREATE VIEW UnfinishedGames AS
+WITH StartedGames
+    AS (SELECT DISTINCT "value" AS "Title"
+        FROM facts
+        WHERE type = 'Game'
+        AND ("rel" = 'Started' OR "rel" = 'Played')),
+	FinishedGames
+    AS (SELECT DISTINCT "value" AS "Title"
+        FROM facts
+        WHERE type = 'Game'
+        AND "rel" = 'Finished')
+SELECT "Title"
+FROM StartedGames
+EXCEPT
+SELECT "Title"
+FROM FinishedGames
+ORDER BY "Title"
+    """,
+    """
+CREATE VIEW UnfinishedBooks AS
+WITH StartedBooks
+    AS (SELECT DISTINCT "value" AS "Title"
+        FROM facts
+        WHERE type = 'Book'
+        AND ("rel" = 'Started' OR "rel" = 'Played')),
+	FinishedBooks
+    AS (SELECT DISTINCT "value" AS "Title"
+        FROM facts
+        WHERE type = 'Book'
+        AND "rel" = 'Finished')
+SELECT "Title"
+FROM StartedBooks
+EXCEPT
+SELECT "Title"
+FROM FinishedBooks
+ORDER BY "Title"
+    """,
+]
+
+def write_sqlite(filepath: str, facts: list[Fact]) -> None:
     INSERT_FACTS = """
     INSERT INTO facts VALUES (:source, :id, :rel, :value_type, :value)
     """
     print(f"Writing {len(facts)} facts as SQLite")
     with sqlite3.connect(filepath) as conn:
-        conn.execute("DROP TABLE IF EXISTS facts")
-        conn.execute(CREATE_FACTS)
+        for statement in SQLITE_STATEMENTS:
+            conn.execute(statement)
         conn.executemany(INSERT_FACTS, map(asdict, facts))
