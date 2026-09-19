@@ -258,7 +258,7 @@ def get_facts() -> list[Fact]:
     facts: list[Fact] = []
 
     for filename, filepath in paths.items():
-        contents = Path(filepath).expanduser().read_text()
+        contents = Path(filepath).expanduser().read_text(encoding="utf-8")
         facts = parse_file(facts, filename, contents)
 
     return facts
