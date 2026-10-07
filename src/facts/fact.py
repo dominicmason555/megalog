@@ -60,8 +60,10 @@ def write_json(filepath: str, facts: list[Fact]) -> None:
 
 
 SQLITE_STATEMENTS = [
+    """DROP VIEW IF EXISTS "LastUnfinishedBooks" """,
     """DROP VIEW IF EXISTS "LastUnfinishedGames" """,
     """DROP VIEW IF EXISTS "LastPlayedGames" """,
+    """DROP VIEW IF EXISTS "LastReadBooks" """,
     """DROP VIEW IF EXISTS "ToPlay" """,
     """DROP VIEW IF EXISTS "UnfinishedGames" """,
     """DROP VIEW IF EXISTS "UnfinishedBooks" """,
