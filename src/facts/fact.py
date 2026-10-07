@@ -60,6 +60,8 @@ def write_json(filepath: str, facts: list[Fact]) -> None:
 
 
 SQLITE_STATEMENTS = [
+    """DROP VIEW IF EXISTS "LastUnfinishedGames" """,
+    """DROP VIEW IF EXISTS "LastPlayedGames" """,
     """DROP VIEW IF EXISTS "ToPlay" """,
     """DROP VIEW IF EXISTS "UnfinishedGames" """,
     """DROP VIEW IF EXISTS "UnfinishedBooks" """,
@@ -72,6 +74,52 @@ SQLITE_STATEMENTS = [
         type VARCAR,
         value VARCHAR
     )
+    """,
+    """
+CREATE VIEW LastPlayedGames AS
+WITH
+    TitleID AS (
+        SELECT "value" as "LastPlayedTitle", "id" as "LastPlayedID"
+	    FROM facts
+        WHERE "type" = 'Game'
+        AND ("rel" = 'Started' OR "rel" = 'Played' OR "rel" = 'Finished')
+    ),
+    DateID AS (
+        SELECT "value" as "PlayedDate", "id" as "PlayedDateID"
+        from facts
+        WHERE "type" = 'Day'
+	)
+SELECT
+    "LastPlayedTitle" AS Title,
+	max("PlayedDate") AS "LastPlayedDate"
+FROM
+TitleID INNER JOIN DateID
+ON "LastPlayedID" = "PlayedDateID"
+GROUP BY "LastPlayedTitle"
+ORDER BY "LastPlayedDate"
+    """,
+    """
+CREATE VIEW LastReadBooks AS
+WITH
+    TitleID AS (
+        SELECT "value" as "LastReadTitle", "id" as "LastReadID"
+	    FROM facts
+        WHERE "type" = 'Book'
+        AND ("rel" = 'Started' OR "rel" = 'Read' OR "rel" = 'Finished' OR "rel" = 'Listened')
+    ),
+    DateID AS (
+        SELECT "value" as "ReadDate", "id" as "ReadDateID"
+        from facts
+        WHERE "type" = 'Day'
+	)
+SELECT
+    "LastReadTitle" AS Title,
+	max("ReadDate") AS "LastReadDate"
+FROM
+TitleID INNER JOIN DateID
+ON "LastReadID" = "ReadDateID"
+GROUP BY "LastReadTitle"
+ORDER BY "LastReadDate"
     """,
     """
 CREATE VIEW "ToPlay" AS
@@ -114,12 +162,22 @@ FROM FinishedGames
 ORDER BY "Title"
     """,
     """
+CREATE VIEW LastUnfinishedGames AS
+SELECT
+    UnfinishedGames.Title,
+    LastPlayedDate
+FROM UnfinishedGames
+LEFT JOIN LastPlayedGames
+ON UnfinishedGames.Title = LastPlayedGames.Title
+ORDER BY LastPlayedDate, UnfinishedGames.Title
+    """,
+    """
 CREATE VIEW UnfinishedBooks AS
 WITH StartedBooks
     AS (SELECT DISTINCT "value" AS "Title"
         FROM facts
         WHERE type = 'Book'
-        AND ("rel" = 'Started' OR "rel" = 'Played')),
+        AND ("rel" = 'Started' OR "rel" = 'Read' OR "rel" = 'Listened')),
 	FinishedBooks
     AS (SELECT DISTINCT "value" AS "Title"
         FROM facts
@@ -132,7 +190,18 @@ SELECT "Title"
 FROM FinishedBooks
 ORDER BY "Title"
     """,
+    """
+CREATE VIEW LastUnfinishedBooks AS
+SELECT
+    UnfinishedBooks.Title,
+    LastReadDate
+FROM UnfinishedBooks
+LEFT JOIN LastReadBooks
+ON UnfinishedBooks.Title = LastReadBooks.Title
+ORDER BY LastReadDate, UnfinishedBooks.Title
+    """,
 ]
+
 
 def write_sqlite(filepath: str, facts: list[Fact]) -> None:
     INSERT_FACTS = """

@@ -8,14 +8,18 @@ from .fact import (
     write_json,
     write_ntriples,
     write_prolog,
+    write_sqlite,
 )
 from .from_sqlite import get_facts as get_sqlite
 from .megalog import get_facts as get_megalog
 
 try:
     from .from_aw import get_facts as get_aw
-except:
-    get_aw = lambda: []
+except ImportError:
+
+    def get_aw() -> list[Fact]:
+        return []
+
 
 FILETYPES = {
     "csv": write_csv,
@@ -71,7 +75,7 @@ def main():
                     contents += file.read_text()
                 all_file.write_text(contents)
                 print(f"Writing to {all_file}")
-
+            write_sqlite(str(facts_dir / "all.db"), facts)
         else:
             print(f"ERROR: Cannot find {facts_dir}")
     else:
