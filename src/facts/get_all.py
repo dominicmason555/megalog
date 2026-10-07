@@ -10,9 +10,12 @@ from .fact import (
     write_prolog,
 )
 from .from_sqlite import get_facts as get_sqlite
-from .from_aw import get_facts as get_aw
 from .megalog import get_facts as get_megalog
 
+try:
+    from .from_aw import get_facts as get_aw
+except:
+    get_aw = lambda: []
 
 FILETYPES = {
     "csv": write_csv,
@@ -67,6 +70,7 @@ def main():
                 for file in files_found:
                     contents += file.read_text()
                 all_file.write_text(contents)
+                print(f"Writing to {all_file}")
 
         else:
             print(f"ERROR: Cannot find {facts_dir}")
