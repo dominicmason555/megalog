@@ -60,6 +60,9 @@ def write_json(filepath: str, facts: list[Fact]) -> None:
 
 
 SQLITE_STATEMENTS = [
+    """DROP VIEW IF EXISTS "Dinners" """,
+    """DROP VIEW IF EXISTS "Lunches" """,
+    """DROP VIEW IF EXISTS "Shops" """,
     """DROP VIEW IF EXISTS "LastUnfinishedBooks" """,
     """DROP VIEW IF EXISTS "LastUnfinishedGames" """,
     """DROP VIEW IF EXISTS "LastPlayedGames" """,
@@ -201,6 +204,99 @@ FROM UnfinishedBooks
 LEFT JOIN LastReadBooks
 ON UnfinishedBooks.Title = LastReadBooks.Title
 ORDER BY LastReadDate, UnfinishedBooks.Title
+    """,
+    """
+CREATE VIEW Shops AS
+WITH
+    Dates AS (
+        SELECT source, id, rel, type, value FROM facts WHERE rel = 'Date' AND type = 'Day'
+    ),
+    Shops AS (
+        SELECT source, id, rel, type, value FROM facts WHERE rel LIKE '%shop%'
+    ),
+    Cost AS (
+        SELECT source, id, rel, type, value FROM facts WHERE rel = 'Cost'
+    )
+SELECT
+    Dates.value AS "Day",
+    Shops.rel AS "ShoppingKind",
+    Shops.type AS "ShopKind",
+    Shops.value AS "Shop",
+    Cost.type AS "Currency",
+    Cost.value AS "Amount"
+FROM
+    Shops
+LEFT JOIN Dates ON Dates.source = Shops.source AND Dates.id = Shops.id
+LEFT JOIN Cost ON Dates.source = Cost.source AND Dates.id = Cost.id
+ORDER BY Day
+    """,
+    """
+CREATE VIEW Lunches AS
+WITH
+    Dates AS (
+        SELECT source, id, rel, type, value FROM facts WHERE rel = 'Date' AND type = 'Day'
+    ),
+    Lunches AS (
+        SELECT source, id, rel, type, value FROM facts WHERE type = 'Lunch'
+    ),
+    Cost AS (
+        SELECT source, id, rel, type, value FROM facts WHERE rel = 'Cost'
+    ),
+    Rating AS(
+        SELECT source, id, rel, type, value FROM facts WHERE rel = 'Rate' and type = '%'
+    ),
+    Pic AS(
+        SELECT source, id, rel, type, value FROM facts WHERE rel = 'Pic'
+    )
+SELECT
+    Dates.value AS "Day",
+    Lunches.rel AS "Kind",
+    Lunches.value AS "Lunch",
+    Cost.type AS "Currency",
+    Cost.value AS "Amount",
+    Rating.value AS "Rating",
+    Pic.value AS "Pic"
+FROM
+    Lunches
+INNER JOIN Dates ON Dates.source = Lunches.source AND Dates.id = Lunches.id
+LEFT JOIN Cost ON Dates.source = Cost.source AND Dates.id = Cost.id
+LEFT JOIN Rating ON Dates.source = Rating.source AND Dates.id = Rating.id
+LEFT JOIN Pic ON Dates.source = Pic.source AND Dates.id = Pic.id
+ORDER BY Day
+    """,
+    """
+CREATE VIEW Dinners AS
+WITH
+    Dates AS (
+        SELECT source, id, rel, type, value FROM facts WHERE rel = 'Date' AND type = 'Day'
+    ),
+    Dinners AS (
+        SELECT source, id, rel, type, value FROM facts WHERE type = 'Dinner'
+    ),
+    Cost AS (
+        SELECT source, id, rel, type, value FROM facts WHERE rel = 'Cost'
+    ),
+    Rating AS(
+        SELECT source, id, rel, type, value FROM facts WHERE rel = 'Rate' and type = '%'
+    ),
+    Pic AS(
+        SELECT source, id, rel, type, value FROM facts WHERE rel = 'Pic'
+    )
+SELECT
+    Dates.value AS "Day",
+    Dinners.rel AS "Kind",
+    Dinners.value AS "Dinner",
+    Cost.type AS "Currency",
+    Cost.value AS "Amount",
+    Rating.value AS "Rating",
+    Pic.value AS "Pic"
+FROM
+    Dinners
+INNER JOIN Dates ON Dates.source = Dinners.source AND Dates.id = Dinners.id
+LEFT JOIN Cost ON Dates.source = Cost.source AND Dates.id = Cost.id
+LEFT JOIN Rating ON Dates.source = Rating.source AND Dates.id = Rating.id
+LEFT JOIN Pic ON Dates.source = Pic.source AND Dates.id = Pic.id
+ORDER BY Day
     """,
 ]
 

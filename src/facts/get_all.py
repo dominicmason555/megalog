@@ -1,4 +1,4 @@
-import os
+import sys
 from pathlib import Path
 
 from .fact import (
@@ -12,12 +12,14 @@ from .fact import (
 )
 from .from_sqlite import get_facts as get_sqlite
 from .megalog import get_facts as get_megalog
+from .directories import get_facts_path
 
 try:
     from .from_aw import get_facts as get_aw
 except ImportError:
 
     def get_aw() -> list[Fact]:
+        print("ActivityWatch Disabled")
         return []
 
 
@@ -27,9 +29,6 @@ FILETYPES = {
     "nt": write_ntriples,
     "pl": write_prolog,
 }
-
-FACTS_PATH_ENV = "WELLKNOWN_SYNC_PERSONAL"
-FACTS_PATH = "facts"
 
 
 def get_facts() -> list[Fact]:
@@ -57,26 +56,22 @@ def main():
 
     csv_header = ",".join(CSV_HEADER) + "\n"
 
-    if parent := os.getenv(FACTS_PATH_ENV):
-        facts_dir = Path(parent) / FACTS_PATH
-        if facts_dir.is_dir():
-            for filetype, func in FILETYPES.items():
-                # Write each source to its own file, overwrite only what we parsed
-                for name, part in partitioned.items():
-                    filename = name.replace("/", "_") + "." + filetype
-                    func(str((facts_dir / filename).absolute()), part)
+    if facts_dir := get_facts_path():
+        for filetype, func in FILETYPES.items():
+            # Write each source to its own file, overwrite only what we parsed
+            for name, part in partitioned.items():
+                filename = name.replace("/", "_") + "." + filetype
+                func(str((facts_dir / filename).absolute()), part)
 
-                # Read all files back and combine, including what we didn't parse this time
-                all_file = Path(facts_dir / f"all.{filetype}")
-                all_file.unlink()
-                files_found = facts_dir.glob(f"*.{filetype}")
-                contents = csv_header if filetype == "csv" else ""
-                for file in files_found:
-                    contents += file.read_text()
-                all_file.write_text(contents)
-                print(f"Writing to {all_file}")
-            write_sqlite(str(facts_dir / "all.db"), facts)
-        else:
-            print(f"ERROR: Cannot find {facts_dir}")
+            # Read all files back and combine, including what we didn't parse this time
+            all_file = Path(facts_dir / f"all.{filetype}")
+            all_file.unlink()
+            files_found = facts_dir.glob(f"*.{filetype}")
+            contents = csv_header if filetype == "csv" else ""
+            for file in files_found:
+                contents += file.read_text()
+            all_file.write_text(contents)
+            print(f"Writing to {all_file}")
+        write_sqlite(str(facts_dir / "all.db"), facts)
     else:
-        print(f"ERROR: Cannot find {FACTS_PATH_ENV}")
+        print("ERROR: Cannot find facts path", file=sys.stderr)
